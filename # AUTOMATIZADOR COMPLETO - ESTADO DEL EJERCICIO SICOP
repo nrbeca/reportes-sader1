@@ -1,0 +1,868 @@
+# ============================================================================
+# AUTOMATIZADOR COMPLETO - ESTADO DEL EJERCICIO SICOP
+# Con logo en Base64 #########
+# ============================================================================
+
+# ============================================================================
+# INSTALACIÓN
+# ============================================================================
+print(" Instalando librerías...")
+!pip install openpyxl pandas python-dateutil num2words pillow requests -q
+
+import pandas as pd
+import numpy as np
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from openpyxl.utils import get_column_letter
+from openpyxl.drawing.image import Image as OpenpyxlImage
+from openpyxl.cell.text import InlineFont
+from openpyxl.cell.rich_text import TextBlock, CellRichText
+from google.colab import files
+from PIL import Image
+import io
+import re
+import os
+import base64
+import requests
+from datetime import datetime, timedelta, date
+from dateutil.relativedelta import relativedelta, MO
+from decimal import Decimal, ROUND_HALF_UP
+from num2words import num2words
+
+print(" Listo\n")
+
+# ============================================================================
+# BASE64 DEL LOGO
+# ============================================================================
+
+LOGO_BASE64 = """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
+"""
+
+# ============================================================================
+# PROCESAR LOGO DESDE BASE64
+# ============================================================================
+LOGO_DISPONIBLE = False
+LOGO_BYTES = None
+
+def procesar_logo_base64():
+    """Procesa el logo desde Base64"""
+    global LOGO_DISPONIBLE, LOGO_BYTES
+    try:
+        if not LOGO_BASE64 or LOGO_BASE64.strip() == "PEGA_AQUI_TU_BASE64_DEL_LOGO":
+            print(" ✗ Logo Base64 no configurado")
+            return False
+
+        # Decodificar Base64
+        logo_data = base64.b64decode(LOGO_BASE64.strip())
+        LOGO_BYTES = logo_data
+        LOGO_DISPONIBLE = True
+        print(" ✓ Logo procesado desde Base64 correctamente")
+        return True
+    except Exception as e:
+        print(f" ✗ Error al procesar logo Base64: {e}")
+    return False
+
+# ============================================================================
+# FUNCIONES
+# ============================================================================
+
+def round_like_excel(value, decimals=2):
+    """Redondea como Excel (ROUND_HALF_UP)"""
+    if pd.isna(value):
+        return 0
+    d = Decimal(str(value))
+    return float(d.quantize(Decimal(10) ** -decimals, rounding=ROUND_HALF_UP))
+
+def numero_a_letras_mx(numero):
+    """Convierte número a texto en español mexicano"""
+    entero = int(numero)
+    centavos = int(round((numero - entero) * 100))
+    if entero == 0:
+        texto_entero = "Cero"
+    else:
+        texto_entero = num2words(entero, lang='es').title()
+        texto_entero = texto_entero.replace('Mil Millones', 'Mil millones')
+        texto_entero = texto_entero.replace('Millones', 'millones')
+        texto_entero = texto_entero.replace('Millón', 'millón')
+        texto_entero = texto_entero.replace('Mil ', 'mil ')
+    return f"{texto_entero} pesos {centavos:02d}/100 M.N."
+
+def formatear_fecha(fecha):
+    """Formatea fecha en español"""
+    meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+             "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    return f"{fecha.day} de {meses[fecha.month - 1]} de {fecha.year}"
+
+def obtener_ultimo_dia_habil(fecha_referencia=None):
+    """Obtiene el último día hábil antes de la fecha de referencia"""
+    if fecha_referencia is None:
+        fecha_referencia = date.today()
+    año_actual = fecha_referencia.year
+    festivos = [
+        date(año_actual, 1, 1), date(año_actual, 5, 1), date(año_actual, 5, 5),
+        date(año_actual, 9, 16), date(año_actual, 12, 25),
+        date(año_actual, 2, 1) + relativedelta(weekday=MO(1)),
+        date(año_actual, 3, 1) + relativedelta(weekday=MO(3)),
+        date(año_actual, 11, 1) + relativedelta(weekday=MO(3))
+    ]
+    dia_analizado = fecha_referencia - timedelta(days=1)
+    while True:
+        if dia_analizado.weekday() < 5 and dia_analizado not in festivos:
+            break
+        dia_analizado -= timedelta(days=1)
+    return dia_analizado
+
+def detectar_mes_del_archivo(filename):
+    """Detecta el mes del nombre del archivo"""
+    meses_map = {
+        'ENE': 1, 'FEB': 2, 'MAR': 3, 'ABR': 4, 'MAY': 5, 'JUN': 6,
+        'JUL': 7, 'AGO': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DIC': 12
+    }
+    filename_upper = filename.upper()
+    for mes_nombre, mes_numero in meses_map.items():
+        if mes_nombre in filename_upper:
+            return mes_numero
+    return date.today().month
+
+def obtener_columnas_hasta_mes(mes_numero):
+    """Obtiene las columnas de modificaciones y reservas hasta el mes indicado"""
+    todos_los_meses = [
+        ('EN', 'ENE'), ('FE', 'FEB'), ('MR', 'MZO'), ('AB', 'ABR'),
+        ('MY', 'MAY'), ('JN', 'JUN'), ('JL', 'JUL'), ('AG', 'AGO'),
+        ('SE', 'SEP'), ('OC', 'OCT'), ('NO', 'NOV'), ('DI', 'DIC')
+    ]
+    meses_usar = todos_los_meses[:mes_numero]
+    return {
+        'modificaciones': [f'MO{abrev}' for abrev, _ in meses_usar],
+        'reservas': [f'RESERVA_{completo}' for _, completo in meses_usar],
+    }
+
+def calcular_congelado_anual(df):
+    """Calcula el total de recursos congelados en el año"""
+    todos_meses = ['ENE', 'FEB', 'MZO', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC']
+    cols = [f'RESERVA_{mes}' for mes in todos_meses if f'RESERVA_{mes}' in df.columns]
+    if cols:
+        return round_like_excel(df[cols].sum(axis=1).sum(), 2)
+    return 0
+
+def calcular_congelado_periodo(df, mes_numero):
+    """Calcula el total de recursos congelados hasta el mes indicado"""
+    cols_a_usar = obtener_columnas_hasta_mes(mes_numero)
+    cols = [col for col in cols_a_usar['reservas'] if col in df.columns]
+    if cols:
+        return round_like_excel(df[cols].sum(axis=1).sum(), 2)
+    return 0
+
+# ============================================================================
+# DENOMINACIONES DE URs
+# ============================================================================
+
+DENOMINACIONES = {
+    '100': 'Secretaría',
+    '109': 'Dirección General de Normalización Agroalimentaria',
+    '110': 'Unidad de Asuntos Jurídicos, Derechos Humanos y Normalización',
+    '111': 'Dirección General de Comunicación Social',
+    '112': 'Dirección General de Enlace Legislativo',
+    '117': 'Coordinación General de Asuntos Internacionales',
+    '200': 'Subsecretaría de Agricultura y Desarrollo Rural',
+    '212': 'Dirección General de Organización para la Productividad',
+    '214': 'Dirección General de la Autosuficiencia Alimentaria',
+    '220': 'Coordinación General de Bienestar para el Campo',
+    '221': 'Dirección General de Fertilizantes para el Bienestar',
+    '222': 'Dirección General de Producción para el Bienestar',
+    '225': 'Coordinación General de Producción Agrícola y Ganadera',
+    '226': 'Dirección General de Producción Agrícola',
+    '227': 'Dirección General de Producción Ganadera',
+    '228': 'Dirección General de Implementación de Acuerdos Sectoriales',
+    '230': 'Coordinación General de Comercialización y Financiamiento',
+    '231': 'Dirección General de Precios y Ordenamiento Comercial',
+    '232': 'Dirección General de Financiamiento y Gestión de Riesgos',
+    '233': 'Dirección General de Agregación de Valor y Comercialización',
+    '235': 'Coordinación General de Eficiencia Hídrica Agroalimentaria',
+    '236': 'Dirección General de Eficiencia Hídrica en el Riego',
+    '237': 'Dirección General de Eficiencia Hídrica en el Temporal',
+    '240': 'Coordinación General de Innovación y Transición Agroecológica',
+    '241': 'Dirección General de Innovación',
+    '242': 'Dirección General de Transición Agroecológica',
+    '245': 'Coordinación General de Sustentabilidad y Resiliencia Climática',
+    '246': 'Dirección General de Sustentabilidad',
+    '247': 'Dirección General de Financiamiento Verde',
+    '250': 'Coordinación General de Operación Territorial',
+    '251': 'Dirección General de Integración Territorial de Programas',
+    '252': 'Dirección General de Intervención Territorial Estratégica',
+    '260': 'Oficina de Representación en Aguascalientes',
+    '261': 'Oficina de Representación en Baja California',
+    '262': 'Oficina de Representación en Baja California Sur',
+    '263': 'Oficina de Representación en Campeche',
+    '264': 'Oficina de Representación en Coahuila',
+    '265': 'Oficina de Representación en Colima',
+    '266': 'Oficina de Representación en Chiapas',
+    '267': 'Oficina de Representación en Chihuahua',
+    '268': 'Oficina de Representación en la Ciudad de México',
+    '269': 'Oficina de Representación en Durango',
+    '270': 'Oficina de Representación en Guanajuato',
+    '271': 'Oficina de Representación en Guerrero',
+    '272': 'Oficina de Representación en Hidalgo',
+    '273': 'Oficina de Representación en Jalisco',
+    '274': 'Oficina de Representación en el Estado de México',
+    '275': 'Oficina de Representación en Michoacán',
+    '276': 'Oficina de Representación en Morelos',
+    '277': 'Oficina de Representación en Nayarit',
+    '278': 'Oficina de Representación en Nuevo León',
+    '279': 'Oficina de Representación en Oaxaca',
+    '280': 'Oficina de Representación en Puebla',
+    '281': 'Oficina de Representación en Querétaro',
+    '282': 'Oficina de Representación en Quintana Roo',
+    '283': 'Oficina de Representación en San Luis Potosí',
+    '284': 'Oficina de Representación en Sinaloa',
+    '285': 'Oficina de Representación en Sonora',
+    '286': 'Oficina de Representación en Tabasco',
+    '287': 'Oficina de Representación en Tamaulipas',
+    '288': 'Oficina de Representación en Tlaxcala',
+    '289': 'Oficina de Representación en Veracruz',
+    '290': 'Oficina de Representación en Yucatán',
+    '291': 'Oficina de Representación en Zacatecas',
+    '292': 'Oficina de Representación en la Región Lagunera',
+    '410': 'Dirección General de Fortalecimiento a la Agricultura Familiar',
+    '411': 'Dirección General de Integración Económica',
+    '413': 'Dirección General de Investigación, Desarrollo Tecnológico y Extensionismo',
+    '500': 'Unidad de Administración y Finanzas',
+    '510': 'Dirección General de Programación, Presupuesto y Finanzas',
+    '511': 'Dirección General de Capital Humano y Desarrollo Organizacional',
+    '512': 'Dirección General de Recursos Materiales, Inmuebles y Servicios',
+    '513': 'Dirección General de Tecnologías de la Información y Comunicaciones',
+    '610': 'Dirección General de Comercialización',
+    '611': 'Dirección General de Administración de Riesgos de Precios',
+    '710': 'Dirección General de Repoblamiento Ganadero',
+    '711': 'Dirección General de Sustentabilidad de Tierras de Uso Ganadero',
+    '800': 'Coordinación General de Información, Inteligencia y Evaluación',
+    '810': 'Dirección General de Evaluación, Políticas y Programas',
+    '811': 'Dirección General del Servicio de Información Agroalimentaria y Pesquera',
+    '812': 'Dirección General de Planeación',
+    'B00': 'Servicio Nacional de Sanidad, Inocuidad y Calidad Agroalimentaria',
+    'C00': 'Servicio Nacional de Inspección y Certificación de Semillas',
+    'D00': 'Colegio Superior Agropecuario del Estado de Guerrero',
+    'I00': 'Comisión Nacional de Acuacultura y Pesca',
+    'A1I': 'Universidad Autónoma Chapingo',
+    'AFU': 'Comité Nacional para el Desarrollo Sustentable de la Caña de Azúcar',
+    'I6L': 'Fideicomiso de Riesgo Compartido',
+    'I9H': 'Instituto Nacional para el Desarrollo de Capacidades del Sector Rural, A.C.',
+    'IZC': 'Colegio de Postgraduados',
+    'IZI': 'Comisión Nacional de las Zonas Áridas',
+    'JAG': 'Instituto Nacional de Investigaciones Forestales, Agrícolas y Pecuarias',
+    'JBP': 'Seguridad Alimentaria Mexicana',
+    'RJL': 'Instituto Mexicano de Investigación en Pesca y Acuacultura Sustentables',
+    'VSS': 'Alimentación para el Bienestar, S.A de C.V.',
+    'VST': 'Leche para el Bienestar, S.A. de C.V.',
+}
+
+# Orden de URs por sección
+SECTOR_CENTRAL = ['100', '109', '110', '111', '112', '117', '200', '212', '214',
+                  '220', '221', '222', '225', '226', '227', '230', '231', '232', '233',
+                  '235', '237', '240', '241', '242', '245', '246', '250', '251', '252',
+                  '410', '411', '413', '500', '510', '511', '512', '513',
+                  '610', '611', '710', '711', '800', '810', '811']
+
+OFICINAS = ['260', '261', '262', '263', '264', '265', '266', '267', '268', '269',
+            '270', '271', '272', '273', '274', '275', '276', '277', '278', '279',
+            '280', '281', '282', '283', '284', '285', '286', '287', '288', '289',
+            '290', '291', '292']
+
+ORGANOS_DESCONCENTRADOS = ['B00', 'C00', 'D00', 'I00']
+
+ENTIDADES_PARAESTATALES = ['A1I', 'AFU', 'I6L', 'I9H', 'IZC', 'IZI', 'JAG', 'JBP', 'RJL', 'VSS', 'VST']
+
+# ============================================================================
+# PROCESAR LOGO AL INICIO
+# ============================================================================
+print("=" * 80)
+print("PROCESAR LOGO")
+print("=" * 80)
+procesar_logo_base64()
+
+# ============================================================================
+# SUBIR ARCHIVOS
+# ============================================================================
+print("\n" + "=" * 80)
+print("SUBIR ARCHIVOS")
+print("=" * 80)
+
+print("\n Sube el SICOP CRUDO (CSV)...")
+uploaded_sicop = files.upload()
+sicop_filename = list(uploaded_sicop.keys())[0]
+print(f" {sicop_filename}\n")
+
+# ============================================================================
+# LEER Y PREPARAR DATOS
+# ============================================================================
+print("\n" + "=" * 80)
+print("LEER Y PREPARAR DATOS")
+print("=" * 80)
+
+df = pd.read_csv(io.BytesIO(uploaded_sicop[sicop_filename]), encoding='latin-1', low_memory=False)
+print(f" Leído: {len(df):,} registros\n")
+
+# Detectar mes y fecha
+mes_archivo = detectar_mes_del_archivo(sicop_filename)
+meses_nombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+print(f" Mes detectado: {meses_nombres[mes_archivo - 1]}\n")
+
+month_names_es = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC']
+month_map = {name: idx+1 for idx, name in enumerate(month_names_es)}
+
+# Extraer fecha del nombre del archivo
+fecha_match = re.search(r'(\d{2})[-_]?(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[-_]?(\d{4})?', sicop_filename, re.IGNORECASE)
+if fecha_match:
+    dia = int(fecha_match.group(1))
+    mes_nombre = fecha_match.group(2).upper()
+    año_archivo = int(fecha_match.group(3)) if fecha_match.group(3) else date.today().year
+    mes_numero = month_map[mes_nombre]
+    fecha_archivo = date(año_archivo, mes_numero, dia)
+    print(f" Fecha del archivo: {formatear_fecha(fecha_archivo)}")
+else:
+    fecha_archivo = date.today()
+    año_archivo = fecha_archivo.year
+    print(f" Fecha no detectada, usando: {formatear_fecha(fecha_archivo)}")
+
+año_actual = date.today().year
+print(f" Año actual: {año_actual}")
+print(f" Año del archivo: {año_archivo}\n")
+
+# Mapeo UR
+mapeo_nueva_ur = {
+    'G00': 811, 108: 810, 113: 250,
+    121: 260, 122: 261, 123: 262, 124: 263, 125: 264, 126: 265, 127: 266, 128: 267, 129: 268, 130: 269,
+    131: 270, 132: 271, 133: 272, 134: 273, 135: 274, 136: 275, 137: 276, 138: 277, 139: 278, 140: 279,
+    141: 280, 142: 281, 143: 282, 144: 283, 145: 284, 146: 285, 147: 286, 148: 287, 149: 288, 150: 289,
+    151: 290, 152: 291, 153: 292,
+    260: 260, 261: 261, 262: 262, 263: 263, 264: 264, 265: 265, 266: 266, 267: 267, 268: 268, 269: 269,
+    270: 270, 271: 271, 272: 272, 273: 273, 274: 274, 275: 275, 276: 276, 277: 277, 278: 278, 279: 279,
+    280: 280, 281: 281, 282: 282, 283: 283, 284: 284, 285: 285, 286: 286, 287: 287, 288: 288, 289: 289,
+    290: 290, 291: 291, 292: 292,
+    215: 220, 300: 225, 310: 226, 311: 237, 312: 232, 314: 245, 315: 233, 400: 235, 600: 230, 612: 231, 700: 227,
+    220: 220, 221: 221, 222: 222, 225: 225, 226: 226, 227: 227, 228: 228, 230: 230, 231: 231, 232: 232, 233: 233,
+    235: 235, 236: 236, 237: 237, 240: 240, 241: 241, 242: 242, 245: 245, 246: 246, 247: 247,
+    250: 250, 251: 251, 252: 252,
+    810: 810, 811: 811, 800: 800, 812: 812
+}
+
+df['ID_UNIDAD'] = df['ID_UNIDAD'].astype(str)
+df['Nueva UR'] = df['ID_UNIDAD'].apply(
+    lambda x: mapeo_nueva_ur.get(x, mapeo_nueva_ur.get(int(x) if str(x).isdigit() else x, x))
+)
+
+df['Partida'] = (
+    df['CAPITULO'] * 10000 + df['CONCEPTO'] * 1000 +
+    df['PARTIDA_GENERICA'] * 100 + df['PARTIDA_ESPECIFICA'] * 10
+).astype(int)
+
+# ============================================================================
+# CALCULAR EJERCIDO REAL
+# ============================================================================
+print(" Calculando EJERCIDO REAL = EJERCIDO + DEVENGADO + EJERCIDO_TRAMITE...")
+
+for col in ['EJERCIDO', 'DEVENGADO', 'EJERCIDO_TRAMITE']:
+    if col not in df.columns:
+        print(f" Columna {col} no encontrada, usando 0")
+        df[col] = 0
+    else:
+        df[col] = df[col].fillna(0)
+
+df['EJERCIDO_REAL'] = df['EJERCIDO'] + df['DEVENGADO'] + df['EJERCIDO_TRAMITE']
+print(" EJERCIDO_REAL calculado\n")
+
+# ============================================================================
+# FILTROS BÁSICOS
+# ============================================================================
+print(" Aplicando filtros básicos...")
+
+urs_validas = SECTOR_CENTRAL + OFICINAS + ORGANOS_DESCONCENTRADOS + ENTIDADES_PARAESTATALES
+
+print(f"   Inicial: {len(df):,}")
+
+# Filtrar URs válidas
+df = df[df['Nueva UR'].astype(str).isin(urs_validas)].copy()
+print(f"   URs válidas: {len(df):,}")
+
+# Excluir partidas 39801/39810
+df = df[~df['Partida'].isin([39801, 39810])].copy()
+print(f"   Sin partidas 39801/39810: {len(df):,}")
+
+# FILTRO DE CAPÍTULO 1
+df = df[df['CAPITULO'] != 1].copy()
+print(f"   Sin CAPÍTULO 1: {len(df):,}\n")
+
+# ============================================================================
+# CALCULAR COLUMNAS POR UR
+# ============================================================================
+print(" Calculando columnas por UR...")
+
+resultados_ur = {}
+es_cierre_año_anterior = (mes_archivo in [1, 2]) and (año_archivo < año_actual)
+
+if es_cierre_año_anterior:
+    print(f"    CIERRE AÑO ANTERIOR DETECTADO - Periodo = Anual\n")
+
+for ur in urs_validas:
+    df_ur = df[df['Nueva UR'].astype(str) == ur].copy()
+
+    if len(df_ur) == 0:
+        resultados_ur[ur] = {
+            'Original': 0, 'Modificado_anual': 0, 'Modificado_periodo': 0, 'Ejercido': 0
+        }
+        continue
+
+    # Calcular Modificado neto
+    df_ur['Modificado_neto'] = df_ur['MODIFICADO_AUTORIZADO'] - df_ur['RESERVAS']
+
+    # ORIGINAL: Suma donde CO=0 (sin filtro de Modificado_neto)
+    df_co0 = df_ur[df_ur['CONTROL_OPERATIVO'] == 0]
+    original = round_like_excel(df_co0['ORIGINAL'].sum(), 2)
+
+    # MODIFICADO y EJERCIDO: Solo registros vigentes (Modificado_neto > 0)
+    df_ur_vigente = df_ur[df_ur['Modificado_neto'] > 0].copy()
+
+    if len(df_ur_vigente) == 0:
+        resultados_ur[ur] = {
+            'Original': original, 'Modificado_anual': 0, 'Modificado_periodo': 0, 'Ejercido': 0
+        }
+        continue
+
+    # MODIFICADO: CO in [0,10,40,50,51] para todas las URs
+    df_modificado = df_ur_vigente[df_ur_vigente['CONTROL_OPERATIVO'].isin([0, 10, 40, 50, 51])]
+
+    # MODIFICADO ANUAL
+    modificado_anual = round_like_excel(df_modificado['Modificado_neto'].sum(), 2)
+
+    # MODIFICADO PERIODO
+    if es_cierre_año_anterior or mes_archivo == 12:
+        modificado_periodo = modificado_anual
+    else:
+        cols_a_usar = obtener_columnas_hasta_mes(mes_archivo)
+        cols_mod = [col for col in cols_a_usar['modificaciones'] if col in df_modificado.columns]
+        cols_res = [col for col in cols_a_usar['reservas'] if col in df_modificado.columns]
+
+        mod_bruto = df_modificado[cols_mod].sum(axis=1).sum() if cols_mod else 0
+        cong_periodo = df_modificado[cols_res].sum(axis=1).sum() if cols_res else 0
+        modificado_periodo = round_like_excel(mod_bruto - cong_periodo, 2)
+
+    # EJERCIDO: Filtros de CO según tipo de UR
+    if ur in ENTIDADES_PARAESTATALES:
+        df_ejercido = df_ur_vigente[df_ur_vigente['CONTROL_OPERATIVO'].isin([10, 50])]
+    elif ur == 'RJL':
+        df_ejercido = df_ur_vigente[df_ur_vigente['CONTROL_OPERATIVO'].isin([10, 50])]
+    elif ur in ORGANOS_DESCONCENTRADOS:
+        df_ejercido = df_ur_vigente[df_ur_vigente['CONTROL_OPERATIVO'].isin([0, 10, 50, 51])]
+    else:
+        df_ejercido = df_ur_vigente[df_ur_vigente['CONTROL_OPERATIVO'].isin([0, 10, 40, 50, 51])]
+
+    ejercido = round_like_excel(df_ejercido['EJERCIDO_REAL'].sum(), 2)
+
+    resultados_ur[ur] = {
+        'Original': original,
+        'Modificado_anual': modificado_anual,
+        'Modificado_periodo': modificado_periodo,
+        'Ejercido': ejercido
+    }
+
+print(" Cálculos completados\n")
+
+# Convertir a DataFrame
+resumen = pd.DataFrame.from_dict(resultados_ur, orient='index').reset_index()
+resumen.columns = ['UR', 'Original', 'Modificado_anual', 'Modificado_periodo', 'Ejercido_acumulado']
+
+# Calcular disponibles y porcentajes
+resumen['Disponible_anual'] = resumen.apply(
+    lambda row: round_like_excel(row['Modificado_anual'] - row['Ejercido_acumulado'], 2), axis=1
+)
+resumen['Disponible_periodo'] = resumen.apply(
+    lambda row: round_like_excel(row['Modificado_periodo'] - row['Ejercido_acumulado'], 2), axis=1
+)
+resumen['Pct_avance_anual'] = resumen.apply(
+    lambda row: row['Ejercido_acumulado'] / row['Modificado_anual'] if row['Modificado_anual'] != 0 else 0, axis=1
+)
+resumen['Pct_avance_periodo'] = resumen.apply(
+    lambda row: row['Ejercido_acumulado'] / row['Modificado_periodo'] if row['Modificado_periodo'] != 0 else 0, axis=1
+)
+
+# Congelados
+df_para_congelados = pd.read_csv(io.BytesIO(uploaded_sicop[sicop_filename]), encoding='latin-1', low_memory=False)
+df_para_congelados['ID_UNIDAD'] = df_para_congelados['ID_UNIDAD'].astype(str)
+df_para_congelados['Nueva UR'] = df_para_congelados['ID_UNIDAD'].apply(
+    lambda x: mapeo_nueva_ur.get(x, mapeo_nueva_ur.get(int(x) if str(x).isdigit() else x, x))
+)
+df_para_congelados['Partida'] = (
+    df_para_congelados['CAPITULO'] * 10000 + df_para_congelados['CONCEPTO'] * 1000 +
+    df_para_congelados['PARTIDA_GENERICA'] * 100 + df_para_congelados['PARTIDA_ESPECIFICA'] * 10
+).astype(int)
+df_para_congelados = df_para_congelados[df_para_congelados['Nueva UR'].astype(str).isin(urs_validas)]
+df_para_congelados = df_para_congelados[~df_para_congelados['Partida'].isin([39801, 39810])]
+df_para_congelados = df_para_congelados[df_para_congelados['CAPITULO'] != 1]
+
+congelado_anual = calcular_congelado_anual(df_para_congelados)
+congelado_periodo = calcular_congelado_periodo(df_para_congelados, mes_archivo)
+texto_congelado_anual = numero_a_letras_mx(congelado_anual)
+texto_congelado_periodo = numero_a_letras_mx(congelado_periodo)
+
+print(f" Congelado Anual: ${congelado_anual:,.2f}")
+print(f" Congelado Periodo: ${congelado_periodo:,.2f}\n")
+
+print(f" {len(resumen)} URs procesadas\n")
+
+print(" TOTALES:")
+print(f"   Original:    ${resumen['Original'].sum():>20,.2f}")
+print(f"   Modificado:  ${resumen['Modificado_anual'].sum():>20,.2f}")
+print(f"   Ejercido:    ${resumen['Ejercido_acumulado'].sum():>20,.2f}\n")
+
+# ============================================================================
+# CREAR EXCEL
+# ============================================================================
+print("=" * 80)
+print("GENERAR EXCEL")
+print("=" * 80)
+
+wb = Workbook()
+ws = wb.active
+ws.title = "Edo. Ejercicio UR"
+
+# Estilos
+font_header = Font(name='Noto Sans', size=14, bold=True, color='FFFFFF')
+font_title = Font(name='Noto Sans', size=14, bold=True)
+font_data = Font(name='Noto Sans', size=14, bold=True)
+font_subtotal_white = Font(name='Noto Sans', size=14, bold=True, color='FFFFFF')
+font_notes = Font(name='Noto Sans', size=14, bold=True)
+
+fill_header = PatternFill(start_color='9C2348', end_color='9C2348', fill_type='solid')
+fill_total = PatternFill(start_color='E7D295', end_color='E7D295', fill_type='solid')
+fill_subtotal = PatternFill(start_color='1E5B4F', end_color='1E5B4F', fill_type='solid')
+fill_gray = PatternFill(start_color='E8E8E8', end_color='E8E8E8', fill_type='solid')
+fill_white = PatternFill(start_color='FFFFFF', end_color='FFFFFF', fill_type='solid')
+
+border_dotted = Border(
+    top=Side(style='dotted'),
+    bottom=Side(style='dotted'),
+    left=Side(style='dotted'),
+    right=Side(style='dotted')
+)
+
+border_none = Border()
+
+align_center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+align_left = Alignment(horizontal='left', vertical='top', wrap_text=True)
+align_right = Alignment(horizontal='right', vertical='top')
+
+fmt_money = '_-* #,##0.00_-;\\-* #,##0.00_-;_-* "-"??_-;_-@_-'
+fmt_pct = '0.00%'
+
+# Anchos de columna
+anchos = {'A': 8.71, 'B': 106.57, 'C': 32.57, 'D': 32, 'E': 38, 'F': 35.29, 'G': 32, 'H': 31.29, 'I': 26, 'J': 25.43}
+for col, ancho in anchos.items():
+    ws.column_dimensions[col].width = ancho
+
+# ============================================================================
+# LIMPIAR BORDES DE FILAS 2 Y 3
+# ============================================================================
+for row in range(2, 4):  # Filas 2 y 3
+    for col in range(1, 11):  # Columnas A a J
+        ws.cell(row=row, column=col).border = border_none
+
+# ============================================================================
+# LOGO EN MEMORIA DESDE BASE64
+# ============================================================================
+if LOGO_DISPONIBLE and LOGO_BYTES:
+    try:
+        # Convertir bytes a imagen PIL
+        pil_image = Image.open(io.BytesIO(LOGO_BYTES))
+
+        # Redimensionar a las dimensiones correctas
+        pil_image = pil_image.resize((208, 39), Image.Resampling.LANCZOS)
+
+        # Guardar en BytesIO
+        img_stream = io.BytesIO()
+        pil_image.save(img_stream, format="PNG")
+        img_stream.seek(0)
+
+        # Crear imagen de openpyxl
+        logo_img = OpenpyxlImage(img_stream)
+        logo_img.width = 208
+        logo_img.height = 39
+
+        # Añadir a la hoja
+        ws.add_image(logo_img, 'A1')
+        print(" ✓ Logo insertado correctamente desde Base64 en la celda A1")
+    except Exception as e:
+        print(f" ✗ Error al procesar logo desde Base64: {e}")
+else:
+    print("  Logo Base64 no disponible - continuando sin logo")
+
+# Fila 1: Encabezado institucional
+ws.merge_cells('A1:J1')
+ws['A1'] = 'Unidad de Administración y Finanzas\nDirección General de Programación, Presupuesto y Finanzas'
+ws['A1'].font = font_title
+ws['A1'].alignment = Alignment(horizontal='right', vertical='center', wrap_text=True)
+ws.row_dimensions[1].height = 44.25
+
+# Fila 4: Título
+hoy = date.today()
+ultimo_habil = obtener_ultimo_dia_habil(hoy)
+ws.merge_cells('A4:J4')
+titulo = f'Estado del ejercicio del 1 de enero al {formatear_fecha(hoy)} por Unidad Responsable de la Secretaría de Agricultura y Desarrollo Rural 1/'
+ws['A4'] = titulo
+ws['A4'].font = font_title
+ws['A4'].alignment = align_center
+ws.row_dimensions[4].height = 22.5
+
+# Fila 5: Vacía
+ws.row_dimensions[5].height = 3.75
+
+# Fila 6: Encabezados
+headers = [
+    'UR', 'Denominación', 'Original\n( a )', 'Modificado anual 2/\n( b )',
+    'Modificado al periodo 3/\n( c )', 'Ejercido Acumulado\n(ejercido + devengado + ejercido en trámite)\n( d )',
+    'Disponible Anual\n( e ) = ( b ) - ( d )', 'Disponible al periodo\n( f ) = ( c ) - ( d )',
+    'Porcentaje de avance anual\n( g ) = ( d ) / ( b )', 'Porcentaje de avance al periodo\n( h ) = ( d ) / ( c )'
+]
+for col, header in enumerate(headers, 1):
+    cell = ws.cell(row=6, column=col, value=header)
+    cell.font = font_header
+    cell.fill = fill_header
+    cell.alignment = align_center
+    cell.border = border_dotted
+ws.row_dimensions[6].height = 106.5
+
+# ============================================================================
+# FUNCIONES PARA ESCRIBIR FILAS
+# ============================================================================
+
+def escribir_fila_subtotal(fila, texto, datos, es_total=False):
+    """Escribe una fila de subtotal o total"""
+    fill = fill_total if es_total else fill_subtotal
+    font_color = font_title if es_total else font_subtotal_white
+
+    ws.merge_cells(f'A{fila}:B{fila}')
+    cell_texto = ws.cell(row=fila, column=1, value=texto)
+    cell_texto.font = font_color
+    cell_texto.fill = fill
+    cell_texto.alignment = align_right if es_total else align_left
+    cell_texto.border = border_dotted
+
+    ws.cell(row=fila, column=2).fill = fill
+    ws.cell(row=fila, column=2).border = border_dotted
+
+    cols_data = ['Original', 'Modificado_anual', 'Modificado_periodo', 'Ejercido_acumulado',
+                 'Disponible_anual', 'Disponible_periodo', 'Pct_avance_anual', 'Pct_avance_periodo']
+
+    for col_idx, key in enumerate(cols_data, 3):
+        cell = ws.cell(row=fila, column=col_idx, value=datos.get(key, 0))
+        cell.font = font_color
+        cell.fill = fill
+        cell.number_format = fmt_pct if col_idx >= 9 else fmt_money
+        cell.alignment = Alignment(vertical='top')
+        cell.border = border_dotted
+
+    ws.row_dimensions[fila].height = 24
+
+def escribir_fila_ur(fila, ur, datos, es_gris=False):
+    """Escribe una fila de UR con fondo blanco o gris"""
+    fill_row = fill_gray if es_gris else fill_white
+
+    cell_ur = ws.cell(row=fila, column=1, value=ur)
+    cell_ur.font = font_data
+    cell_ur.alignment = align_center
+    cell_ur.fill = fill_row
+    cell_ur.border = border_dotted
+
+    cell_denom = ws.cell(row=fila, column=2, value=DENOMINACIONES.get(ur, ''))
+    cell_denom.font = font_data
+    cell_denom.alignment = align_left
+    cell_denom.fill = fill_row
+    cell_denom.border = border_dotted
+
+    cols_data = ['Original', 'Modificado_anual', 'Modificado_periodo', 'Ejercido_acumulado',
+                 'Disponible_anual', 'Disponible_periodo', 'Pct_avance_anual', 'Pct_avance_periodo']
+
+    for col_idx, key in enumerate(cols_data, 3):
+        cell = ws.cell(row=fila, column=col_idx, value=datos.get(key, 0))
+        cell.font = font_data
+        cell.fill = fill_row
+        cell.number_format = fmt_pct if col_idx >= 9 else fmt_money
+        cell.alignment = Alignment(vertical='top')
+        cell.border = border_dotted
+
+    ws.row_dimensions[fila].height = 24
+
+def calcular_subtotal(urs_lista):
+    """Calcula el subtotal para una lista de URs"""
+    df_seccion = resumen[resumen['UR'].isin(urs_lista)]
+    subtotal = {
+        'Original': df_seccion['Original'].sum(),
+        'Modificado_anual': df_seccion['Modificado_anual'].sum(),
+        'Modificado_periodo': df_seccion['Modificado_periodo'].sum(),
+        'Ejercido_acumulado': df_seccion['Ejercido_acumulado'].sum(),
+        'Disponible_anual': df_seccion['Disponible_anual'].sum(),
+        'Disponible_periodo': df_seccion['Disponible_periodo'].sum(),
+    }
+    subtotal['Pct_avance_anual'] = subtotal['Ejercido_acumulado'] / subtotal['Modificado_anual'] if subtotal['Modificado_anual'] != 0 else 0
+    subtotal['Pct_avance_periodo'] = subtotal['Ejercido_acumulado'] / subtotal['Modificado_periodo'] if subtotal['Modificado_periodo'] != 0 else 0
+    return subtotal
+
+# ============================================================================
+# ESCRIBIR DATOS
+# ============================================================================
+print("\n Escribiendo datos...")
+
+fila = 7
+contador_fila = 0
+
+# Calcular subtotales
+subtotal_sc = calcular_subtotal(SECTOR_CENTRAL)
+subtotal_of = calcular_subtotal(OFICINAS)
+subtotal_od = calcular_subtotal(ORGANOS_DESCONCENTRADOS)
+subtotal_ep = calcular_subtotal(ENTIDADES_PARAESTATALES)
+
+total_general = {
+    'Original': subtotal_sc['Original'] + subtotal_of['Original'] + subtotal_od['Original'] + subtotal_ep['Original'],
+    'Modificado_anual': subtotal_sc['Modificado_anual'] + subtotal_of['Modificado_anual'] + subtotal_od['Modificado_anual'] + subtotal_ep['Modificado_anual'],
+    'Modificado_periodo': subtotal_sc['Modificado_periodo'] + subtotal_of['Modificado_periodo'] + subtotal_od['Modificado_periodo'] + subtotal_ep['Modificado_periodo'],
+    'Ejercido_acumulado': subtotal_sc['Ejercido_acumulado'] + subtotal_of['Ejercido_acumulado'] + subtotal_od['Ejercido_acumulado'] + subtotal_ep['Ejercido_acumulado'],
+    'Disponible_anual': subtotal_sc['Disponible_anual'] + subtotal_of['Disponible_anual'] + subtotal_od['Disponible_anual'] + subtotal_ep['Disponible_anual'],
+    'Disponible_periodo': subtotal_sc['Disponible_periodo'] + subtotal_of['Disponible_periodo'] + subtotal_od['Disponible_periodo'] + subtotal_ep['Disponible_periodo'],
+}
+total_general['Pct_avance_anual'] = total_general['Ejercido_acumulado'] / total_general['Modificado_anual'] if total_general['Modificado_anual'] != 0 else 0
+total_general['Pct_avance_periodo'] = total_general['Ejercido_acumulado'] / total_general['Modificado_periodo'] if total_general['Modificado_periodo'] != 0 else 0
+
+escribir_fila_subtotal(fila, 'Total general:', total_general, es_total=True)
+fila += 1
+
+# Sector Central
+escribir_fila_subtotal(fila, 'Sector Central', subtotal_sc)
+fila += 1
+contador_fila = 0
+for ur in SECTOR_CENTRAL:
+    datos_ur = resumen[resumen['UR'] == ur]
+    if not datos_ur.empty:
+        datos = datos_ur.iloc[0].to_dict()
+        escribir_fila_ur(fila, ur, datos, es_gris=(contador_fila % 2 == 1))
+        fila += 1
+        contador_fila += 1
+
+# Oficinas
+escribir_fila_subtotal(fila, 'Oficinas de Representación en las Entidades Federativas', subtotal_of)
+fila += 1
+contador_fila = 0
+for ur in OFICINAS:
+    datos_ur = resumen[resumen['UR'] == ur]
+    if not datos_ur.empty:
+        datos = datos_ur.iloc[0].to_dict()
+        escribir_fila_ur(fila, ur, datos, es_gris=(contador_fila % 2 == 1))
+        fila += 1
+        contador_fila += 1
+
+# Órganos Desconcentrados
+escribir_fila_subtotal(fila, 'Órganos Desconcentrados', subtotal_od)
+fila += 1
+contador_fila = 0
+for ur in ORGANOS_DESCONCENTRADOS:
+    datos_ur = resumen[resumen['UR'] == ur]
+    if not datos_ur.empty:
+        datos = datos_ur.iloc[0].to_dict()
+        escribir_fila_ur(fila, ur, datos, es_gris=(contador_fila % 2 == 1))
+        fila += 1
+        contador_fila += 1
+
+# Entidades Paraestatales
+escribir_fila_subtotal(fila, 'Entidades Paraestatales', subtotal_ep)
+fila += 1
+contador_fila = 0
+for ur in ENTIDADES_PARAESTATALES:
+    datos_ur = resumen[resumen['UR'] == ur]
+    if not datos_ur.empty:
+        datos = datos_ur.iloc[0].to_dict()
+        escribir_fila_ur(fila, ur, datos, es_gris=(contador_fila % 2 == 1))
+        fila += 1
+        contador_fila += 1
+
+# ============================================================================
+# LIMPIAR BORDES DE TODAS LAS CELDAS VACÍAS DE LA TABLA
+# ============================================================================
+print("\n Limpiando bordes de celdas vacías...")
+
+ultima_fila_tabla = fila - 1
+
+for row in range(7, ultima_fila_tabla + 1):
+    for col in range(1, 11):
+        cell = ws.cell(row=row, column=col)
+        if cell.value is None:
+            cell.border = border_none
+
+# ============================================================================
+# NOTAS AL PIE - CADA NOTA EN UNA CELDA COMBINADA Y FILAS MÁS ALTAS
+# ============================================================================
+fila += 1
+
+# NOTA - Fuente
+ws.merge_cells(f'A{fila}:J{fila}')
+cell_fuente = ws.cell(row=fila, column=1, value=f'Fuente: Elaborado con la base extraída del Sistema de Contabilidad y Presupuesto (SICOP), con corte al {formatear_fecha(ultimo_habil)}.')
+cell_fuente.font = font_notes
+cell_fuente.fill = fill_white
+cell_fuente.border = border_none
+cell_fuente.alignment = align_left
+ws.row_dimensions[fila].height = 35
+fila += 1
+
+# NOTA 1
+ws.merge_cells(f'A{fila}:J{fila}')
+cell_nota1 = ws.cell(row=fila, column=1, value='1/ No Incluye el capítulo 1000 "Servicios personales" ni partida 39801 "Impuesto sobre nóminas".')
+cell_nota1.font = font_notes
+cell_nota1.fill = fill_white
+cell_nota1.border = border_none
+cell_nota1.alignment = align_left
+ws.row_dimensions[fila].height = 35
+fila += 1
+
+# NOTA 2
+ws.merge_cells(f'A{fila}:J{fila}')
+nota_2_texto = f'2/ El Presupuesto Modificado Anual no incluye ${congelado_anual:,.2f} ({texto_congelado_anual}), recursos congelados.'
+cell_nota2 = ws.cell(row=fila, column=1, value=nota_2_texto)
+cell_nota2.font = font_notes
+cell_nota2.fill = fill_white
+cell_nota2.border = border_none
+cell_nota2.alignment = align_left
+ws.row_dimensions[fila].height = 35
+fila += 1
+
+# NOTA 3
+ws.merge_cells(f'A{fila}:J{fila}')
+nota_3_texto = f'3/ El Presupuesto Modificado al periodo no incluye ${congelado_periodo:,.2f} ({texto_congelado_periodo}), recursos congelados.'
+cell_nota3 = ws.cell(row=fila, column=1, value=nota_3_texto)
+cell_nota3.font = font_notes
+cell_nota3.fill = fill_white
+cell_nota3.border = border_none
+cell_nota3.alignment = align_left
+ws.row_dimensions[fila].height = 35
+
+print(" Datos y notas escritos dinámicamente\n")
+
+# ============================================================================
+# GUARDAR
+# ============================================================================
+print("=" * 80)
+print("GUARDAR")
+print("=" * 80)
+
+fecha_formato = datetime.now().strftime('%d%b%Y').upper()
+output_filename = f'Estado_Ejercicio_SICOP_{fecha_formato}.xlsx'
+
+wb.save(output_filename)
+print(f" ✓ {output_filename}")
+
+files.download(output_filename)
+
+print("\n ¡COMPLETADO!")
+print(f"   URs: {len(resumen)}")
+print(f"   Mes: {meses_nombres[mes_archivo - 1]}")
+print(f"   Año del archivo: {año_archivo}")
+if es_cierre_año_anterior:
+    print(f"    CIERRE DE AÑO ANTERIOR - Periodo = Anual")
+print("=" * 80)
